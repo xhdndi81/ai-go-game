@@ -55,3 +55,6 @@ node_modules/
 *.swp
 *~
 
+# Playwright screenshots
+.playwright-mcp/
+
