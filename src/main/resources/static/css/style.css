@@ -82,6 +82,7 @@ button:active {
 /* Top Navigation (Portrait) */
 .top-nav {
     display: flex;
+    flex-direction: row !important;
     flex-shrink: 0;
     padding: 8px 15px;
     background-color: #fff;
@@ -93,25 +94,32 @@ button:active {
     max-height: 25vh;
     box-sizing: border-box;
     z-index: 100;
-    overflow: hidden;
+    overflow: visible;
+    gap: 15px;
 }
 
 .ai-chat-area {
     flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    display: flex;
+    min-width: 150px;
+    max-width: calc(100% - 200px);
+    overflow: visible;
+    display: flex !important;
     flex-direction: column;
     max-height: calc(25vh - 20px);
+    min-height: 60px !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    align-self: center;
 }
 
 .ai-character {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 10px;
-    min-height: 0;
-    height: 100%;
-    overflow: hidden;
+    min-height: 60px !important;
+    height: auto;
+    overflow: visible;
+    flex: 1;
 }
 
 #ai-img {
@@ -136,9 +144,28 @@ button:active {
     overflow-y: auto;
     overflow-x: hidden;
     font-weight: 500;
-    flex: 1 1 0;
-    min-height: 0;
+    flex: 1;
+    min-height: 40px !important;
+    min-width: 100px !important;
     max-height: calc(25vh - 50px) !important;
+    display: flex !important;
+    align-items: center;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+#ai-message {
+    margin: 0;
+    padding: 0;
+    color: #333 !important;
+    width: 100%;
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    font-size: 1rem !important;
+    line-height: 1.4 !important;
+    white-space: normal !important;
+    word-break: keep-all !important;
 }
 
 /* 스크롤바 스타일링 */
@@ -179,8 +206,9 @@ button:active {
     flex-direction: column;
     align-items: flex-end;
     gap: 8px;
-    margin-left: 12px;
     flex-shrink: 0;
+    align-self: center;
+    min-width: 120px;
 }
 
 .status-container {
@@ -251,6 +279,7 @@ button:active {
     justify-content: center;
     align-items: center;
     gap: 5px;
+    margin: 0 auto;
 }
 
 .captured-area {
@@ -258,11 +287,12 @@ button:active {
     flex-wrap: wrap;
     align-items: center;
     justify-content: center;
-    width: 100%;
+    width: 95%;
     min-height: 35px;
-    gap: 3px;
-    background-color: rgba(0,0,0,0.03);
+    gap: 5px;
+    background-color: rgba(0,0,0,0.05);
     border-radius: 10px;
+    padding: 2px 10px;
 }
 
 .captured-area-landscape {
@@ -292,94 +322,165 @@ button:active {
     border-color: #999;
 }
 
+.captured-count {
+    font-size: 1rem;
+    font-weight: bold;
+    color: #333;
+    margin-left: 4px;
+    font-family: 'Nanum Gothic', sans-serif;
+}
+
 #myBoard {
-    width: min(100vw - 10px, 100vh - 200px) !important;
-    height: min(100vw - 10px, 100vh - 200px) !important;
+    width: min(100vw - 15px, 100vh - 280px) !important;
+    height: min(100vw - 15px, 100vh - 280px) !important;
     border: 3px solid #4a90e2;
     box-sizing: border-box;
     touch-action: none;
+    margin: 5px auto;
+    display: block;
 }
 
 /* Portrait Mode - Ensure speech bubble height is limited */
 @media (orientation: portrait) {
     .ai-chat-area {
-        max-height: calc(25vh - 20px) !important;
-        height: calc(25vh - 20px) !important;
+        height: auto !important;
+        max-height: 15vh !important;
+        min-height: 60px !important;
+        max-width: calc(100% - 140px) !important;
+        overflow: hidden !important;
     }
     
     .ai-character {
-        height: 100% !important;
-        max-height: 100% !important;
+        height: auto !important;
+        min-height: 60px !important;
+        gap: 8px !important;
+    }
+
+    #ai-img {
+        width: 45px !important;
+        height: 45px !important;
+        flex-shrink: 0;
     }
     
     .speech-bubble {
-        max-height: calc(25vh - 70px) !important;
-        height: calc(25vh - 70px) !important;
+        max-height: calc(15vh - 10px) !important;
+        height: auto !important;
+        min-height: 35px !important;
+        padding: 6px 10px !important;
+        font-size: 0.9rem !important;
+        overflow-y: auto !important;
+    }
+
+    .top-nav {
+        padding: 8px 12px !important;
+        height: auto !important;
+        min-height: 80px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+    }
+
+    .header-right {
+        min-width: 110px !important;
+        gap: 5px !important;
+    }
+
+    .status-container {
+        margin-bottom: 2px !important;
+    }
+
+    .status-container p {
+        font-size: 0.9rem !important;
+    }
+
+    .nav-controls {
+        gap: 5px !important;
+    }
+
+    .nav-controls button {
+        padding: 4px 8px !important;
+        font-size: 0.8rem !important;
     }
 }
 
 /* Landscape Mode Adjustments */
 @media (orientation: landscape) {
     #game-container {
-        flex-direction: row;
+        flex-direction: row !important;
     }
 
     .top-nav {
-        width: 200px;
-        height: 100%;
-        flex-direction: column;
-        justify-content: flex-start;
-        padding: 20px 15px;
+        width: 220px !important;
+        height: 100vh !important;
+        max-height: 100vh !important;
+        flex-direction: column !important;
+        justify-content: flex-start !important;
+        align-items: stretch !important;
+        padding: 20px 15px !important;
         border-right: 2px solid #f0f0f0;
         border-bottom: none;
         box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+        overflow-y: auto;
+        overflow-x: hidden;
+        gap: 15px !important;
+        position: relative !important;
     }
 
     .ai-chat-area {
-        margin-bottom: 20px;
-        width: 100%;
-        max-height: calc(100vh - 300px);
-        overflow: hidden;
+        margin-bottom: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        max-height: calc(100vh - 350px) !important;
+        min-height: 150px !important;
+        overflow: visible !important;
+        flex-shrink: 0;
     }
 
     .ai-character {
-        flex-direction: column;
-        text-align: center;
+        flex-direction: column !important;
+        text-align: center !important;
+        align-items: center !important;
+        gap: 10px !important;
     }
 
     #ai-img {
-        width: 60px;
-        height: 60px;
+        width: 60px !important;
+        height: 60px !important;
+        margin: 0 auto;
     }
 
     .speech-bubble {
-        max-height: calc(100vh - 350px);
-        margin-top: 10px;
-        font-size: 1.1rem;
-        overflow-y: auto;
-        overflow-x: hidden;
+        max-height: calc(100vh - 400px) !important;
+        min-height: 80px !important;
+        margin-top: 10px !important;
+        font-size: 1rem !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        width: 100% !important;
     }
 
     .speech-bubble:after {
-        border-right-color: transparent;
-        border-bottom-color: #fff9c4;
-        top: -12px;
-        left: 50%;
-        margin-left: -6px;
-        border-left: 6px solid transparent;
+        border-right-color: transparent !important;
+        border-bottom-color: #fff9c4 !important;
+        top: -12px !important;
+        left: 50% !important;
+        margin-left: -6px !important;
+        border-left: 6px solid transparent !important;
     }
 
     .header-right {
-        width: 100%;
-        margin-left: 0;
-        margin-top: auto;
-        align-items: center;
+        width: 100% !important;
+        margin-left: 0 !important;
+        margin-top: auto !important;
+        align-items: center !important;
+        flex-shrink: 0;
+        gap: 10px !important;
     }
 
     .status-container {
-        width: 100%;
-        text-align: center;
-        margin-bottom: 20px;
+        width: 100% !important;
+        text-align: center !important;
+        margin-bottom: 10px !important;
     }
 
     #game-status {
@@ -396,6 +497,8 @@ button:active {
         flex-direction: row;
         gap: 8px;
         padding: 0 10px;
+        justify-content: center !important;
+        align-items: center !important;
     }
 
     .captured-area {
@@ -412,6 +515,7 @@ button:active {
     #myBoard {
         width: min(100vw - 300px, 100vh - 30px) !important;
         height: min(100vw - 300px, 100vh - 30px) !important;
+        margin: 0 auto !important;
     }
 }
 

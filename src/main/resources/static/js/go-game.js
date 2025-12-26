@@ -18,11 +18,16 @@ class GoGame {
         return JSON.stringify(this.board);
     }
 
-    // JSON 문자열에서 보드 상태 복원
-    fromJSON(jsonStr) {
-        if (!jsonStr) return;
+    // JSON 문자열 또는 객체에서 보드 상태 복원
+    fromJSON(jsonStrOrObj) {
+        if (!jsonStrOrObj) return;
         try {
-            this.board = JSON.parse(jsonStr);
+            if (typeof jsonStrOrObj === 'string') {
+                this.board = JSON.parse(jsonStrOrObj);
+            } else {
+                // 이미 파싱된 객체인 경우
+                this.board = jsonStrOrObj;
+            }
         } catch (e) {
             console.error("Failed to parse board state:", e);
         }

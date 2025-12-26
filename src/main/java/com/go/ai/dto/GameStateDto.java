@@ -9,6 +9,8 @@ public class GameStateDto {
     private String hostName;
     private String guestName;
     private String message; // 선택적 메시지 전달용
+    private Integer capturedBlack;
+    private Integer capturedWhite;
 
     public GameStateDto() {}
 
@@ -21,6 +23,8 @@ public class GameStateDto {
         this.hostName = hostName;
         this.guestName = guestName;
         this.message = null;
+        this.capturedBlack = 0;
+        this.capturedWhite = 0;
     }
 
     public GameStateDto(String boardState, String turn, String status, Boolean isGameOver, String winner, String hostName, String guestName, String message) {
@@ -32,6 +36,21 @@ public class GameStateDto {
         this.hostName = hostName;
         this.guestName = guestName;
         this.message = message;
+        this.capturedBlack = 0;
+        this.capturedWhite = 0;
+    }
+
+    public GameStateDto(String boardState, String turn, String status, Boolean isGameOver, String winner, String hostName, String guestName, String message, Integer capturedBlack, Integer capturedWhite) {
+        this.boardState = boardState;
+        this.turn = turn;
+        this.status = status;
+        this.isGameOver = isGameOver;
+        this.winner = winner;
+        this.hostName = hostName;
+        this.guestName = guestName;
+        this.message = message;
+        this.capturedBlack = capturedBlack;
+        this.capturedWhite = capturedWhite;
     }
 
     public String getBoardState() { return boardState; }
@@ -50,5 +69,9 @@ public class GameStateDto {
     public void setGuestName(String guestName) { this.guestName = guestName; }
     public String getMessage() { return message; }
     public void setMessage(String message) { this.message = message; }
+    public Integer getCapturedBlack() { return capturedBlack; }
+    public void setCapturedBlack(Integer capturedBlack) { this.capturedBlack = capturedBlack; }
+    public Integer getCapturedWhite() { return capturedWhite; }
+    public void setCapturedWhite(Integer capturedWhite) { this.capturedWhite = capturedWhite; }
 }
 

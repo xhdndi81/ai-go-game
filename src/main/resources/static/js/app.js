@@ -119,14 +119,23 @@ function updateStatus() {
         });
     } else {
         if (gameMode === 'multi') {
-            const currentTurn = game.getTurn();
+            const currentTurn = game.getTurn(); // 'b' 또는 'w'
+            console.log('--- Nudge Button Check ---');
+            console.log('Current Turn (from game):', currentTurn);
+            console.log('My Color:', myColor);
+            
             if (currentTurn === myColor) {
+                // 내 차례
+                console.log('Result: My Turn - Hiding Nudge Button');
                 $('#ai-message').text('당신의 차례입니다. 멋진 수를 보여주세요! 😊');
-                $('#btn-nudge').hide();
+                $('#btn-nudge').css('display', 'none');
             } else {
+                // 상대방 차례
+                console.log('Result: Opponent Turn - Showing Nudge Button');
                 $('#ai-message').text('상대방이 생각 중입니다... ⏳');
-                $('#btn-nudge').show();
+                $('#btn-nudge').css('display', 'block');
             }
+            console.log('---------------------------');
         } else {
             if (game.getTurn() === 'w') {
                 $('#ai-message').text('어디로 두면 좋을까? 천천히 생각해보렴!');
@@ -148,13 +157,14 @@ function updateCapturedStones() {
     const blackCount = game.capturedBlack;
     const whiteCount = game.capturedWhite;
     
-    // 포획된 돌 표시 (간단한 원형 표시)
-    const blackHtml = Array(blackCount).fill(0).map(() => 
-        '<div class="captured-stone black-stone"></div>'
-    ).join('');
-    const whiteHtml = Array(whiteCount).fill(0).map(() => 
-        '<div class="captured-stone white-stone"></div>'
-    ).join('');
+    // 포획된 돌 표시: x3 형태로 표시
+    const blackHtml = blackCount > 0 
+        ? `<div class="captured-stone black-stone"></div><span class="captured-count">×${blackCount}</span>`
+        : '';
+    
+    const whiteHtml = whiteCount > 0 
+        ? `<div class="captured-stone white-stone"></div><span class="captured-count">×${whiteCount}</span>`
+        : '';
     
     $('#captured-black').html(blackHtml);
     $('#captured-white').html(whiteHtml);
@@ -175,8 +185,49 @@ function getAIComment() {
             userName: userName
         }),
         success: function(response) {
-            $('#ai-message').text(response.comment);
-            speak(response.comment);
+            const aiMessageEl = $('#ai-message');
+            if (response && response.comment) {
+                aiMessageEl.text(response.comment);
+                aiMessageEl.css({
+                    'display': 'block',
+                    'visibility': 'visible',
+                    'opacity': '1'
+                });
+                speak(response.comment);
+            } else {
+                // 응답이 없거나 형식이 잘못된 경우 기본 메시지 표시
+                const fallbackMents = [
+                    "좋은 수를 두고 있네요!",
+                    "바둑판이 점점 흥미로워지고 있어요!",
+                    "계속 집중해서 좋은 수를 찾아보세요!"
+                ];
+                const ment = fallbackMents[Math.floor(Math.random() * fallbackMents.length)];
+                aiMessageEl.text(ment);
+                aiMessageEl.css({
+                    'display': 'block',
+                    'visibility': 'visible',
+                    'opacity': '1'
+                });
+                speak(ment);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('AI 코멘트 요청 실패:', error);
+            // 에러 발생 시 기본 메시지 표시
+            const aiMessageEl = $('#ai-message');
+            const errorMents = [
+                "음, 제 차례군요.",
+                "어디로 두면 좋을까?",
+                "선생님도 집중하고 있어요!"
+            ];
+            const ment = errorMents[Math.floor(Math.random() * errorMents.length)];
+            aiMessageEl.text(ment);
+            aiMessageEl.css({
+                'display': 'block',
+                'visibility': 'visible',
+                'opacity': '1'
+            });
+            speak(ment);
         }
     });
 }
@@ -284,17 +335,61 @@ $(document).ready(function() {
                 initBoard();
                 
                 const welcome = `안녕, ${userName}야! 나는 너의 바둑 친구야. 우리 재미있게 놀아보자!`;
-                $('#ai-message').text(welcome);
+                const aiMessageEl = $('#ai-message');
+                const speechBubble = $('.speech-bubble');
+                const aiChatArea = $('.ai-chat-area');
+                const aiCharacter = $('.ai-character');
+                
+                // 메시지 설정
+                aiMessageEl.text(welcome);
+                aiMessageEl.css({
+                    'display': 'block !important',
+                    'visibility': 'visible !important',
+                    'opacity': '1 !important',
+                    'color': '#333 !important'
+                });
+                
+                // 말풍선 보이기
+                speechBubble.css({
+                    'display': 'flex !important',
+                    'visibility': 'visible !important',
+                    'opacity': '1 !important',
+                    'min-height': '40px !important'
+                });
+                
+                // AI 영역 보이기
+                aiChatArea.css({
+                    'display': 'flex !important',
+                    'visibility': 'visible !important',
+                    'min-height': '60px !important'
+                });
+                
+                aiCharacter.css({
+                    'display': 'flex !important',
+                    'visibility': 'visible !important',
+                    'min-height': '60px !important'
+                });
+                
                 speak(welcome);
                 
                 // AI 메시지 업데이트 후 높이 재설정
                 setTimeout(() => {
-                    const speechBubble = document.querySelector('.speech-bubble');
-                    if (speechBubble) {
+                    const speechBubbleEl = document.querySelector('.speech-bubble');
+                    const aiMessage = document.getElementById('ai-message');
+                    if (speechBubbleEl) {
                         const maxHeight = Math.min(window.innerHeight * 0.25 - 70, 200);
-                        speechBubble.style.setProperty('max-height', maxHeight + 'px', 'important');
-                        speechBubble.style.setProperty('height', maxHeight + 'px', 'important');
-                        speechBubble.style.setProperty('overflow-y', 'auto', 'important');
+                        speechBubbleEl.style.setProperty('max-height', maxHeight + 'px', 'important');
+                        speechBubbleEl.style.setProperty('min-height', '40px', 'important');
+                        speechBubbleEl.style.setProperty('overflow-y', 'auto', 'important');
+                        speechBubbleEl.style.setProperty('display', 'flex', 'important');
+                        speechBubbleEl.style.setProperty('visibility', 'visible', 'important');
+                        speechBubbleEl.style.setProperty('opacity', '1', 'important');
+                    }
+                    if (aiMessage) {
+                        aiMessage.style.setProperty('display', 'block', 'important');
+                        aiMessage.style.setProperty('visibility', 'visible', 'important');
+                        aiMessage.style.setProperty('opacity', '1', 'important');
+                        aiMessage.style.setProperty('color', '#333', 'important');
                     }
                 }, 100);
                 
@@ -342,7 +437,7 @@ $(document).ready(function() {
         $('#login-container').show();
         
         // 게임 상태 초기화
-        game = new GoGame();
+        game.reset();
         board = null;
         movesCount = 0;
         gameMode = 'single';
@@ -369,7 +464,7 @@ $(document).ready(function() {
     });
     
     $('#btn-new-game').on('click', () => {
-        game = new GoGame();
+        game.reset();
         movesCount = 0;
         if (typeof lastSentBoardState !== 'undefined') lastSentBoardState = null;
         $('#btn-new-game').hide();
@@ -394,7 +489,9 @@ $(document).ready(function() {
                     status: nextStatus,
                     isGameOver: false,
                     winner: null,
-                    message: nextMessage
+                    message: nextMessage,
+                    capturedBlack: 0,
+                    capturedWhite: 0
                 }));
             }
             
@@ -424,7 +521,8 @@ function initBoard() {
     });
     updateStatus();
     $('#btn-new-game').hide();
-    $('#btn-nudge').hide();
+    // updateStatus에서 재촉하기 버튼 표시 여부를 결정하므로 여기서 강제로 숨기지 않음
+
     
     // AI 채팅 영역 높이 제한 설정
     function setChatAreaHeight() {

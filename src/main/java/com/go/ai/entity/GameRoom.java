@@ -33,6 +33,9 @@ public class GameRoom {
     @Column(length = 10)
     private String winner; // 'b', 'w', 'draw' 또는 null
 
+    private Integer capturedBlack = 0;
+    private Integer capturedWhite = 0;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 
@@ -58,6 +61,11 @@ public class GameRoom {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getStartedAt() { return startedAt; }
     public void setStartedAt(LocalDateTime startedAt) { this.startedAt = startedAt; }
+
+    public Integer getCapturedBlack() { return capturedBlack; }
+    public void setCapturedBlack(Integer capturedBlack) { this.capturedBlack = capturedBlack; }
+    public Integer getCapturedWhite() { return capturedWhite; }
+    public void setCapturedWhite(Integer capturedWhite) { this.capturedWhite = capturedWhite; }
 
     public enum RoomStatus {
         WAITING,    // 대기 중

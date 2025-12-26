@@ -50,7 +50,9 @@ public class GameWebSocketController {
                     moveDto.getCol(),
                     moveDto.getBoardState(),
                     moveDto.getTurn(),
-                    userId);
+                    userId,
+                    moveDto.getCapturedBlack(),
+                    moveDto.getCapturedWhite());
 
             // makeMove 후 최신 상태 반환
             return state;
@@ -92,7 +94,9 @@ public class GameWebSocketController {
                     stateDto.getTurn(),
                     stateDto.getIsGameOver() != null ? stateDto.getIsGameOver() : false,
                     stateDto.getWinner(),
-                    stateDto.getStatus());
+                    stateDto.getStatus(),
+                    stateDto.getCapturedBlack(),
+                    stateDto.getCapturedWhite());
 
             // 업데이트된 상태를 모든 클라이언트에 브로드캐스트
             GameStateDto updatedState = gameRoomService.getGameState(roomId);

@@ -6,6 +6,8 @@ public class MoveDto {
     private int col; // 바둑 좌표 (0-18)
     private String boardState; // 이동 후의 바둑 상태
     private String turn; // 다음 차례 ('b' 또는 'w')
+    private Integer capturedBlack;
+    private Integer capturedWhite;
 
     public MoveDto() {}
 
@@ -19,5 +21,9 @@ public class MoveDto {
     public void setBoardState(String boardState) { this.boardState = boardState; }
     public String getTurn() { return turn; }
     public void setTurn(String turn) { this.turn = turn; }
+    public Integer getCapturedBlack() { return capturedBlack; }
+    public void setCapturedBlack(Integer capturedBlack) { this.capturedBlack = capturedBlack; }
+    public Integer getCapturedWhite() { return capturedWhite; }
+    public void setCapturedWhite(Integer capturedWhite) { this.capturedWhite = capturedWhite; }
 }
 

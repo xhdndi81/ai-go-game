@@ -142,6 +142,8 @@ public class GameRoomService {
         notification.put("winner", winner);
         notification.put("hostName", gameState.getHostName());
         notification.put("guestName", gameState.getGuestName());
+        notification.put("capturedBlack", gameState.getCapturedBlack());
+        notification.put("capturedWhite", gameState.getCapturedWhite());
         notification.put("message", loserName + "님이 나갔습니다. " + winnerName + "님이 승리했습니다!");
         
         messagingTemplate.convertAndSend("/topic/game/" + room.getId(), notification);
@@ -205,6 +207,8 @@ public class GameRoomService {
         notification.put("winner", gameState.getWinner());
         notification.put("hostName", gameState.getHostName());
         notification.put("guestName", gameState.getGuestName());
+        notification.put("capturedBlack", gameState.getCapturedBlack());
+        notification.put("capturedWhite", gameState.getCapturedWhite());
         notification.put("message", guest.getName() + "님이 게임에 참여했습니다! 게임을 시작합니다.");
         
         messagingTemplate.convertAndSend("/topic/game/" + roomId, notification);
@@ -213,7 +217,7 @@ public class GameRoomService {
     }
 
     @Transactional
-    public GameStateDto makeMove(Long roomId, int row, int col, String boardState, String turn, Long userId) {
+    public GameStateDto makeMove(Long roomId, int row, int col, String boardState, String turn, Long userId, Integer capturedBlack, Integer capturedWhite) {
         GameRoom room = gameRoomRepository.findById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("Room not found"));
 
@@ -233,12 +237,15 @@ public class GameRoomService {
         // 보드 상태와 차례 업데이트
         room.setBoardState(boardState);
         room.setTurn(turn);
+        if (capturedBlack != null) room.setCapturedBlack(capturedBlack);
+        if (capturedWhite != null) room.setCapturedWhite(capturedWhite);
 
         gameRoomRepository.save(room);
 
         return getGameState(roomId);
     }
 
+    @Transactional(readOnly = true)
     public GameStateDto getGameState(Long roomId) {
         GameRoom room = gameRoomRepository.findById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("Room not found"));
@@ -252,17 +259,22 @@ public class GameRoomService {
                 isGameOver,
                 room.getWinner(),
                 room.getHost().getName(),
-                room.getGuest() != null ? room.getGuest().getName() : null
+                room.getGuest() != null ? room.getGuest().getName() : null,
+                null,
+                room.getCapturedBlack(),
+                room.getCapturedWhite()
         );
     }
 
     @Transactional
-    public void updateGameState(Long roomId, String boardState, String turn, boolean isGameOver, String winner, String status) {
+    public void updateGameState(Long roomId, String boardState, String turn, boolean isGameOver, String winner, String status, Integer capturedBlack, Integer capturedWhite) {
         GameRoom room = gameRoomRepository.findById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("Room not found"));
 
         room.setBoardState(boardState);
         room.setTurn(turn);
+        if (capturedBlack != null) room.setCapturedBlack(capturedBlack);
+        if (capturedWhite != null) room.setCapturedWhite(capturedWhite);
 
         if (isGameOver) {
             room.setStatus(GameRoom.RoomStatus.FINISHED);
@@ -274,6 +286,8 @@ public class GameRoomService {
                 room.setWinner(null);
                 room.setGuest(null);
                 room.setStartedAt(null);
+                room.setCapturedBlack(0);
+                room.setCapturedWhite(0);
                 log.info("Room {} manually set to WAITING status", roomId);
             } 
             // 게임이 종료되지 않았고, 현재 상태가 FINISHED라면 새 게임 시작
@@ -284,11 +298,15 @@ public class GameRoomService {
                     room.setWinner(null);
                     room.setGuest(null); // 명시적으로 null 설정
                     room.setStartedAt(null); // 시작 시간 초기화
+                    room.setCapturedBlack(0);
+                    room.setCapturedWhite(0);
                     log.info("Room {} reset to WAITING status for new game (no guest)", roomId);
                 } else {
                     // 상대방이 있으면 PLAYING 상태로 변경
                     room.setStatus(GameRoom.RoomStatus.PLAYING);
                     room.setWinner(null);
+                    room.setCapturedBlack(0);
+                    room.setCapturedWhite(0);
                     log.info("Room {} reset to PLAYING status for new game (with guest)", roomId);
                 }
             }

@@ -4,7 +4,13 @@ function makeAIMove() {
     if (game.checkGameOver()) return;
     
     stopNudgeTimer();
-    $('#ai-message').text('음... 어디로 두면 좋을까? 🤔');
+    const aiMessageEl = $('#ai-message');
+    aiMessageEl.text('음... 어디로 두면 좋을까? 🤔');
+    aiMessageEl.css({
+        'display': 'block',
+        'visibility': 'visible',
+        'opacity': '1'
+    });
     
     // 난이도에 따라 AI 수준 결정
     setTimeout(() => {
@@ -17,17 +23,27 @@ function makeAIMove() {
                 updateStatus();
                 movesCount++;
                 
-                // AI 코멘트 요청
-                if (Math.random() < 0.3) {
+                // AI 코멘트 요청 (항상 메시지 표시)
+                if (Math.random() < 0.4) {
+                    // 40% 확률로 AI 코멘트 요청
                     getAIComment();
                 } else {
+                    // 60% 확률로 간단한 메시지 표시
                     const casualMents = [
                         "음, 제 차례군요.",
                         "어디로 두면 좋을까?",
-                        "선생님도 집중하고 있어요!"
+                        "선생님도 집중하고 있어요!",
+                        "좋은 수를 두고 있네요!",
+                        "바둑판이 점점 흥미로워지고 있어요!"
                     ];
                     const ment = casualMents[Math.floor(Math.random() * casualMents.length)];
-                    $('#ai-message').text(ment);
+                    const aiMessageEl = $('#ai-message');
+                    aiMessageEl.text(ment);
+                    aiMessageEl.css({
+                        'display': 'block',
+                        'visibility': 'visible',
+                        'opacity': '1'
+                    });
                     speak(ment);
                 }
                 
@@ -144,8 +160,49 @@ function getAIComment() {
             userName: userName
         }),
         success: function(response) {
-            $('#ai-message').text(response.comment);
-            speak(response.comment);
+            const aiMessageEl = $('#ai-message');
+            if (response && response.comment) {
+                aiMessageEl.text(response.comment);
+                aiMessageEl.css({
+                    'display': 'block',
+                    'visibility': 'visible',
+                    'opacity': '1'
+                });
+                speak(response.comment);
+            } else {
+                // 응답이 없거나 형식이 잘못된 경우 기본 메시지 표시
+                const fallbackMents = [
+                    "좋은 수를 두고 있네요!",
+                    "바둑판이 점점 흥미로워지고 있어요!",
+                    "계속 집중해서 좋은 수를 찾아보세요!"
+                ];
+                const ment = fallbackMents[Math.floor(Math.random() * fallbackMents.length)];
+                aiMessageEl.text(ment);
+                aiMessageEl.css({
+                    'display': 'block',
+                    'visibility': 'visible',
+                    'opacity': '1'
+                });
+                speak(ment);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('AI 코멘트 요청 실패:', error);
+            // 에러 발생 시 기본 메시지 표시
+            const aiMessageEl = $('#ai-message');
+            const errorMents = [
+                "음, 제 차례군요.",
+                "어디로 두면 좋을까?",
+                "선생님도 집중하고 있어요!"
+            ];
+            const ment = errorMents[Math.floor(Math.random() * errorMents.length)];
+            aiMessageEl.text(ment);
+            aiMessageEl.css({
+                'display': 'block',
+                'visibility': 'visible',
+                'opacity': '1'
+            });
+            speak(ment);
         }
     });
 }

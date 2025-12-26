@@ -49,7 +49,9 @@ function sendMoveToServer(row, col) {
         row: row,
         col: col,
         boardState: currentBoardState,
-        turn: currentTurn
+        turn: currentTurn,
+        capturedBlack: game.capturedBlack,
+        capturedWhite: game.capturedWhite
     }));
     
     // 게임 종료 여부 확인 및 추가 업데이트 (필요한 경우)
@@ -133,7 +135,9 @@ function updateGameStateOnServer() {
         isGameOver: isGameOver,
         winner: winner,
         hostName: '',
-        guestName: ''
+        guestName: '',
+        capturedBlack: game.capturedBlack,
+        capturedWhite: game.capturedWhite
     }));
 }
 
@@ -170,7 +174,7 @@ function handleGameStateUpdate(gameState) {
             
             // 새 게임 시작 메시지인 경우 보드 초기화
             if (gameState.message.includes('새 게임')) {
-                game = new GoGame();
+                game.reset();
                 movesCount = 0;
                 lastSentBoardState = null;
                 if (gameState.boardState) {
@@ -186,11 +190,15 @@ function handleGameStateUpdate(gameState) {
     // 보드 상태가 있으면 업데이트
     if (gameState.boardState) {
         const currentBoardState = game.toJSON();
+        // boardState가 문자열인지 객체인지 확인
+        const serverBoardStateStr = typeof gameState.boardState === 'string' 
+            ? gameState.boardState 
+            : JSON.stringify(gameState.boardState);
         const INITIAL_BOARD_STATE = JSON.stringify(Array(19).fill(null).map(() => Array(19).fill(0)));
         
         // 새 게임 시작 (초기 보드 상태이고 게임이 종료되지 않은 경우)
-        if (gameState.boardState === INITIAL_BOARD_STATE && (!gameState.isGameOver && gameState.status !== 'FINISHED')) {
-            game = new GoGame();
+        if (serverBoardStateStr === INITIAL_BOARD_STATE && (!gameState.isGameOver && gameState.status !== 'FINISHED')) {
+            game.reset();
             movesCount = 0;
             lastSentBoardState = null;
             board.update();
@@ -198,15 +206,38 @@ function handleGameStateUpdate(gameState) {
             $('#btn-new-game').hide();
             console.log('New game started - board reset');
         }
-        // 현재 상태와 다르면 업데이트
-        else if (gameState.boardState !== currentBoardState && gameState.boardState !== lastSentBoardState) {
-            console.log('Updating game state from server');
-            game.fromJSON(gameState.boardState);
-            if (gameState.turn) {
-                game.currentTurn = gameState.turn === 'b' ? 1 : -1;
+        // 현재 상태와 다르면 업데이트 (자신이 보낸 메시지가 아닌 경우)
+        else if (serverBoardStateStr !== currentBoardState) {
+            // 자신이 보낸 메시지인지 확인 (문자열 비교)
+            const lastSentStr = lastSentBoardState ? (typeof lastSentBoardState === 'string' ? lastSentBoardState : JSON.stringify(lastSentBoardState)) : null;
+            
+            if (serverBoardStateStr !== lastSentStr) {
+                console.log('Updating game state from server');
+                console.log('Server state:', serverBoardStateStr.substring(0, 100));
+                console.log('Current state:', currentBoardState.substring(0, 100));
+                console.log('Last sent state:', lastSentStr ? lastSentStr.substring(0, 100) : 'null');
+                
+                const boardStateObj = typeof gameState.boardState === 'string' 
+                    ? JSON.parse(gameState.boardState) 
+                    : gameState.boardState;
+                game.fromJSON(boardStateObj);
+                if (gameState.turn) {
+                    // 서버의 turn('b' 또는 'w')을 게임 엔진의 currentTurn(1 또는 -1)으로 변환
+                    game.currentTurn = (gameState.turn === 'b' ? 1 : -1);
+                    console.log('Synced turn from server:', gameState.turn, '->', game.currentTurn);
+                }
+                if (gameState.capturedBlack !== undefined && gameState.capturedBlack !== null) {
+                    game.capturedBlack = gameState.capturedBlack;
+                }
+                if (gameState.capturedWhite !== undefined && gameState.capturedWhite !== null) {
+                    game.capturedWhite = gameState.capturedWhite;
+                }
+                board.update();
+                updateStatus();
+                updateCapturedStones();
+            } else {
+                console.log('Ignoring own message');
             }
-            board.update();
-            updateStatus();
         } else {
             console.log('Local board state matches server state, no update needed.');
         }
@@ -334,7 +365,7 @@ function createRoom() {
                 success: function(room) {
                     roomId = room.id;
                     isHost = true;
-                    myColor = 'w'; // 방장은 백
+                    myColor = 'b'; // 방장은 흑
                     opponentName = '상대방';
                     
                     const docEl = document.documentElement;
@@ -348,7 +379,43 @@ function createRoom() {
                     connectWebSocket(roomId);
                     
                     setTimeout(() => {
-                        $('#ai-message').text('방을 만들었어요! 상대방이 들어올 때까지 기다려주세요...');
+                        const message = '방을 만들었어요! 상대방이 들어올 때까지 기다려주세요...';
+                        const aiMessageEl = $('#ai-message');
+                        const speechBubble = $('.speech-bubble');
+                        const aiChatArea = $('.ai-chat-area');
+                        const aiCharacter = $('.ai-character');
+                        
+                        // 메시지 설정
+                        aiMessageEl.text(message);
+                        aiMessageEl.css({
+                            'display': 'block !important',
+                            'visibility': 'visible !important',
+                            'opacity': '1 !important',
+                            'color': '#333 !important'
+                        });
+                        
+                        // 말풍선 보이기
+                        speechBubble.css({
+                            'display': 'flex !important',
+                            'visibility': 'visible !important',
+                            'opacity': '1 !important',
+                            'min-height': '40px !important'
+                        });
+                        
+                        // AI 영역 보이기
+                        aiChatArea.css({
+                            'display': 'flex !important',
+                            'visibility': 'visible !important',
+                            'min-height': '60px !important'
+                        });
+                        
+                        aiCharacter.css({
+                            'display': 'flex !important',
+                            'visibility': 'visible !important',
+                            'min-height': '60px !important'
+                        });
+                        
+                        speak(message);
                     }, 500);
                 },
                 error: function() {
@@ -381,7 +448,7 @@ function joinRoom(targetRoomId) {
                 success: function(gameState) {
                     roomId = targetRoomId;
                     isHost = false;
-                    myColor = 'b'; // 참여자는 흑
+                    myColor = 'w'; // 참여자는 백
                     opponentName = gameState.hostName || '상대방';
                     
                     const docEl = document.documentElement;
@@ -392,7 +459,10 @@ function joinRoom(targetRoomId) {
                     $('#game-container').show();
                     
                     if (gameState.boardState) {
-                        game.fromJSON(gameState.boardState);
+                        const boardStateObj = typeof gameState.boardState === 'string' 
+                            ? JSON.parse(gameState.boardState) 
+                            : gameState.boardState;
+                        game.fromJSON(boardStateObj);
                     }
                     if (gameState.turn) {
                         game.currentTurn = gameState.turn === 'b' ? 1 : -1;
@@ -403,7 +473,41 @@ function joinRoom(targetRoomId) {
                     
                     setTimeout(() => {
                         const message = `${gameState.hostName}님과의 게임이 시작되었습니다!`;
-                        $('#ai-message').text(message);
+                        const aiMessageEl = $('#ai-message');
+                        const speechBubble = $('.speech-bubble');
+                        const aiChatArea = $('.ai-chat-area');
+                        const aiCharacter = $('.ai-character');
+                        
+                        // 메시지 설정
+                        aiMessageEl.text(message);
+                        aiMessageEl.css({
+                            'display': 'block !important',
+                            'visibility': 'visible !important',
+                            'opacity': '1 !important',
+                            'color': '#333 !important'
+                        });
+                        
+                        // 말풍선 보이기
+                        speechBubble.css({
+                            'display': 'flex !important',
+                            'visibility': 'visible !important',
+                            'opacity': '1 !important',
+                            'min-height': '40px !important'
+                        });
+                        
+                        // AI 영역 보이기
+                        aiChatArea.css({
+                            'display': 'flex !important',
+                            'visibility': 'visible !important',
+                            'min-height': '60px !important'
+                        });
+                        
+                        aiCharacter.css({
+                            'display': 'flex !important',
+                            'visibility': 'visible !important',
+                            'min-height': '60px !important'
+                        });
+                        
                         speak(message);
                     }, 500);
                 },

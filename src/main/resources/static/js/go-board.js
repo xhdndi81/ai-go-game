@@ -37,8 +37,9 @@ class GoBoard {
     }
 
     resize() {
-        const rect = this.container.getBoundingClientRect();
-        const size = Math.min(rect.width, rect.height);
+        const width = this.container.clientWidth;
+        const height = this.container.clientHeight;
+        const size = Math.min(width, height);
         this.canvas.width = size;
         this.canvas.height = size;
         this.cellSize = size / 20; // 19x19 보드 + 여백
