@@ -4,9 +4,11 @@ import com.go.ai.dto.GameStateDto;
 import com.go.ai.dto.RoomDto;
 import com.go.ai.entity.GameHistory;
 import com.go.ai.entity.GameRoom;
+import com.go.ai.entity.GoGameData;
 import com.go.ai.entity.User;
 import com.go.ai.repository.GameHistoryRepository;
 import com.go.ai.repository.GameRoomRepository;
+import com.go.ai.repository.GoGameDataRepository;
 import com.go.ai.repository.UserRepository;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -26,12 +28,16 @@ public class GameRoomService {
     private static final Logger log = LoggerFactory.getLogger(GameRoomService.class);
 
     private final GameRoomRepository gameRoomRepository;
+    private final GoGameDataRepository goGameDataRepository;
     private final UserRepository userRepository;
     private final GameHistoryRepository gameHistoryRepository;
     private final SimpMessagingTemplate messagingTemplate;
 
-    public GameRoomService(GameRoomRepository gameRoomRepository, UserRepository userRepository, GameHistoryRepository gameHistoryRepository, SimpMessagingTemplate messagingTemplate) {
+    public GameRoomService(GameRoomRepository gameRoomRepository, GoGameDataRepository goGameDataRepository,
+            UserRepository userRepository, GameHistoryRepository gameHistoryRepository,
+            SimpMessagingTemplate messagingTemplate) {
         this.gameRoomRepository = gameRoomRepository;
+        this.goGameDataRepository = goGameDataRepository;
         this.userRepository = userRepository;
         this.gameHistoryRepository = gameHistoryRepository;
         this.messagingTemplate = messagingTemplate;
@@ -46,10 +52,12 @@ public class GameRoomService {
     private static String boardToJson(int[][] board) {
         StringBuilder sb = new StringBuilder("[");
         for (int i = 0; i < board.length; i++) {
-            if (i > 0) sb.append(",");
+            if (i > 0)
+                sb.append(",");
             sb.append("[");
             for (int j = 0; j < board[i].length; j++) {
-                if (j > 0) sb.append(",");
+                if (j > 0)
+                    sb.append(",");
                 sb.append(board[i][j]);
             }
             sb.append("]");
@@ -66,10 +74,15 @@ public class GameRoomService {
         GameRoom room = new GameRoom();
         room.setHost(host);
         room.setStatus(GameRoom.RoomStatus.WAITING);
-        room.setBoardState(getInitialBoardState());
-        room.setTurn("b"); // 바둑은 흑이 먼저
+        room.setGameType(GameRoom.GameType.GO);
 
-        return gameRoomRepository.save(room);
+        GameRoom savedRoom = gameRoomRepository.save(room);
+
+        // GoGameData 생성
+        GoGameData goData = new GoGameData(savedRoom, getInitialBoardState(), "b");
+        goGameDataRepository.save(goData);
+
+        return savedRoom;
     }
 
     @Transactional
@@ -79,8 +92,9 @@ public class GameRoomService {
         for (GameRoom room : allRooms) {
             boolean isHost = room.getHost().getId().equals(userId);
             boolean isGuest = room.getGuest() != null && room.getGuest().getId().equals(userId);
-            
-            if (!isHost && !isGuest) continue;
+
+            if (!isHost && !isGuest)
+                continue;
 
             if (room.getStatus() == GameRoom.RoomStatus.PLAYING) {
                 processDisconnectWin(room, isHost);
@@ -114,24 +128,29 @@ public class GameRoomService {
         String winner = isHost ? "w" : "b";
         User winnerUser = isHost ? room.getGuest() : room.getHost();
         User loserUser = isHost ? room.getHost() : room.getGuest();
-        
+
         String winnerName = winnerUser != null ? winnerUser.getName() : "상대방";
         String loserName = loserUser != null ? loserUser.getName() : "상대방";
-        
+
         room.setStatus(GameRoom.RoomStatus.FINISHED);
-        room.setWinner(winner);
-        
+
+        // GoGameData 업데이트
+        GoGameData goData = goGameDataRepository.findByRoom(room)
+                .orElseThrow(() -> new IllegalStateException("GoGameData not found for room " + room.getId()));
+        goData.setWinner(winner);
+        goGameDataRepository.save(goData);
+
         // 승패 기록 저장 (나간 사람 포함)
-        saveGameHistory(winnerUser, GameHistory.GameResult.WIN, loserName);
-        saveGameHistory(loserUser, GameHistory.GameResult.LOSS, winnerName);
-        
+        saveGameHistory(winnerUser, GameHistory.GameResult.WIN, loserName, GameHistory.GameType.GO);
+        saveGameHistory(loserUser, GameHistory.GameResult.LOSS, winnerName, GameHistory.GameType.GO);
+
         // 게스트가 나간 경우 게스트 정보 초기화
         if (!isHost) {
             room.setGuest(null);
         }
-        
+
         gameRoomRepository.save(room);
-        
+
         // 남은 플레이어에게 알림 전송
         GameStateDto gameState = getGameState(room.getId());
         Map<String, Object> notification = new HashMap<>();
@@ -145,17 +164,20 @@ public class GameRoomService {
         notification.put("capturedBlack", gameState.getCapturedBlack());
         notification.put("capturedWhite", gameState.getCapturedWhite());
         notification.put("message", loserName + "님이 나갔습니다. " + winnerName + "님이 승리했습니다!");
-        
+
         messagingTemplate.convertAndSend("/topic/game/" + room.getId(), notification);
         log.info("User in room {} disconnected. Automatic win for {}", room.getId(), winner);
     }
 
-    private void saveGameHistory(User user, GameHistory.GameResult result, String opponentName) {
-        if (user == null) return;
-        
+    private void saveGameHistory(User user, GameHistory.GameResult result, String opponentName,
+            GameHistory.GameType gameType) {
+        if (user == null)
+            return;
+
         GameHistory history = new GameHistory();
         history.setUser(user);
         history.setResult(result);
+        history.setGameType(gameType);
         history.setOpponentName(opponentName);
         history.setMovesCount(0); // 기권/이탈 시 수 카운트는 일단 0으로 처리
         gameHistoryRepository.save(history);
@@ -163,14 +185,18 @@ public class GameRoomService {
     }
 
     public List<RoomDto> getWaitingRooms() {
-        return gameRoomRepository.findByStatusOrderByCreatedAtDesc(GameRoom.RoomStatus.WAITING)
+        // 기본값은 GO (바둑)
+        return getWaitingRooms(GameRoom.GameType.GO);
+    }
+
+    public List<RoomDto> getWaitingRooms(GameRoom.GameType gameType) {
+        return gameRoomRepository.findByStatusAndGameTypeOrderByCreatedAtDesc(GameRoom.RoomStatus.WAITING, gameType)
                 .stream()
                 .map(room -> new RoomDto(
                         room.getId(),
                         room.getHost().getName(),
                         room.getStatus().name(),
-                        room.getCreatedAt()
-                ))
+                        room.getCreatedAt()))
                 .collect(Collectors.toList());
     }
 
@@ -195,7 +221,7 @@ public class GameRoomService {
         room.setStartedAt(LocalDateTime.now());
 
         GameRoom savedRoom = gameRoomRepository.save(room);
-        
+
         // 참여자 입장 알림을 WebSocket으로 브로드캐스트
         GameStateDto gameState = getGameState(roomId);
         // 메시지 필드를 추가하기 위해 Map 사용
@@ -210,14 +236,15 @@ public class GameRoomService {
         notification.put("capturedBlack", gameState.getCapturedBlack());
         notification.put("capturedWhite", gameState.getCapturedWhite());
         notification.put("message", guest.getName() + "님이 게임에 참여했습니다! 게임을 시작합니다.");
-        
+
         messagingTemplate.convertAndSend("/topic/game/" + roomId, notification);
-        
+
         return savedRoom;
     }
 
     @Transactional
-    public GameStateDto makeMove(Long roomId, int row, int col, String boardState, String turn, Long userId, Integer capturedBlack, Integer capturedWhite) {
+    public GameStateDto makeMove(Long roomId, int row, int col, String boardState, String turn, Long userId,
+            Integer capturedBlack, Integer capturedWhite) {
         GameRoom room = gameRoomRepository.findById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("Room not found"));
 
@@ -225,22 +252,28 @@ public class GameRoomService {
             throw new IllegalStateException("Game is not in progress");
         }
 
+        // GoGameData 조회
+        GoGameData goData = goGameDataRepository.findByRoom(room)
+                .orElseThrow(() -> new IllegalStateException("GoGameData not found for room " + roomId));
+
         // 차례 확인
-        String currentTurn = room.getTurn();
+        String currentTurn = goData.getTurn();
         boolean isHostTurn = currentTurn.equals("b") && room.getHost().getId().equals(userId);
-        boolean isGuestTurn = currentTurn.equals("w") && room.getGuest() != null && room.getGuest().getId().equals(userId);
+        boolean isGuestTurn = currentTurn.equals("w") && room.getGuest() != null
+                && room.getGuest().getId().equals(userId);
 
         if (!isHostTurn && !isGuestTurn) {
             throw new IllegalStateException("Not your turn");
         }
 
         // 보드 상태와 차례 업데이트
-        room.setBoardState(boardState);
-        room.setTurn(turn);
-        if (capturedBlack != null) room.setCapturedBlack(capturedBlack);
-        if (capturedWhite != null) room.setCapturedWhite(capturedWhite);
-
-        gameRoomRepository.save(room);
+        goData.setBoardState(boardState);
+        goData.setTurn(turn);
+        if (capturedBlack != null)
+            goData.setCapturedBlack(capturedBlack);
+        if (capturedWhite != null)
+            goData.setCapturedWhite(capturedWhite);
+        goGameDataRepository.save(goData);
 
         return getGameState(roomId);
     }
@@ -252,66 +285,89 @@ public class GameRoomService {
 
         boolean isGameOver = room.getStatus() == GameRoom.RoomStatus.FINISHED;
 
+        // GoGameData 조회
+        GoGameData goData = goGameDataRepository.findByRoom(room)
+                .orElseThrow(() -> new IllegalStateException("GoGameData not found for room " + roomId));
+
         return new GameStateDto(
-                room.getBoardState(),
-                room.getTurn(),
+                goData.getBoardState(),
+                goData.getTurn(),
                 room.getStatus().name(),
                 isGameOver,
-                room.getWinner(),
+                goData.getWinner(),
                 room.getHost().getName(),
                 room.getGuest() != null ? room.getGuest().getName() : null,
                 null,
-                room.getCapturedBlack(),
-                room.getCapturedWhite()
-        );
+                goData.getCapturedBlack(),
+                goData.getCapturedWhite());
     }
 
     @Transactional
-    public void updateGameState(Long roomId, String boardState, String turn, boolean isGameOver, String winner, String status, Integer capturedBlack, Integer capturedWhite) {
+    public void updateGameState(Long roomId, String boardState, String turn, boolean isGameOver, String winner,
+            String status, Integer capturedBlack, Integer capturedWhite) {
         GameRoom room = gameRoomRepository.findById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("Room not found"));
 
-        room.setBoardState(boardState);
-        room.setTurn(turn);
-        if (capturedBlack != null) room.setCapturedBlack(capturedBlack);
-        if (capturedWhite != null) room.setCapturedWhite(capturedWhite);
+        // GoGameData 조회 또는 생성
+        GoGameData goData = goGameDataRepository.findByRoom(room)
+                .orElseGet(() -> {
+                    GoGameData newData = new GoGameData(room, getInitialBoardState(), "b");
+                    return goGameDataRepository.save(newData);
+                });
+
+        goData.setBoardState(boardState);
+        goData.setTurn(turn);
+        if (capturedBlack != null)
+            goData.setCapturedBlack(capturedBlack);
+        if (capturedWhite != null)
+            goData.setCapturedWhite(capturedWhite);
 
         if (isGameOver) {
             room.setStatus(GameRoom.RoomStatus.FINISHED);
-            room.setWinner(winner);
+            goData.setWinner(winner);
         } else {
             // 명시적인 상태 전달이 있으면 해당 상태로 변경 (예: WAITING)
             if ("WAITING".equals(status)) {
                 room.setStatus(GameRoom.RoomStatus.WAITING);
-                room.setWinner(null);
+                goData.setWinner(null);
+                // 새 게임 시작을 위해 초기 보드 상태로 리셋
+                goData.setBoardState(getInitialBoardState());
+                goData.setTurn("b");
+                goData.setCapturedBlack(0);
+                goData.setCapturedWhite(0);
                 room.setGuest(null);
                 room.setStartedAt(null);
-                room.setCapturedBlack(0);
-                room.setCapturedWhite(0);
                 log.info("Room {} manually set to WAITING status", roomId);
-            } 
+            }
             // 게임이 종료되지 않았고, 현재 상태가 FINISHED라면 새 게임 시작
             else if (room.getStatus() == GameRoom.RoomStatus.FINISHED) {
                 // 상대방이 없으면 WAITING 상태로 변경 (대기방 목록에 나타나도록)
                 if (room.getGuest() == null) {
                     room.setStatus(GameRoom.RoomStatus.WAITING);
-                    room.setWinner(null);
+                    goData.setWinner(null);
+                    // 새 게임 시작을 위해 초기 보드 상태로 리셋
+                    goData.setBoardState(getInitialBoardState());
+                    goData.setTurn("b");
+                    goData.setCapturedBlack(0);
+                    goData.setCapturedWhite(0);
                     room.setGuest(null); // 명시적으로 null 설정
                     room.setStartedAt(null); // 시작 시간 초기화
-                    room.setCapturedBlack(0);
-                    room.setCapturedWhite(0);
                     log.info("Room {} reset to WAITING status for new game (no guest)", roomId);
                 } else {
                     // 상대방이 있으면 PLAYING 상태로 변경
                     room.setStatus(GameRoom.RoomStatus.PLAYING);
-                    room.setWinner(null);
-                    room.setCapturedBlack(0);
-                    room.setCapturedWhite(0);
+                    goData.setWinner(null);
+                    // 새 게임 시작을 위해 초기 보드 상태로 리셋
+                    goData.setBoardState(getInitialBoardState());
+                    goData.setTurn("b");
+                    goData.setCapturedBlack(0);
+                    goData.setCapturedWhite(0);
                     log.info("Room {} reset to PLAYING status for new game (with guest)", roomId);
                 }
             }
         }
 
+        goGameDataRepository.save(goData);
         gameRoomRepository.save(room);
     }
 
@@ -334,7 +390,7 @@ public class GameRoomService {
 
         User opponentUser = null;
         String opponentName = null;
-        
+
         if (room.getHost().getId().equals(fromUserId)) {
             // 방장이 재촉한 경우, 상대방은 게스트
             opponentUser = room.getGuest();
@@ -352,10 +408,10 @@ public class GameRoomService {
 
         // 재촉 메시지 배열 (랜덤 선택)
         String[] nudgeMessages = {
-            opponentName + "님, 빨리 두세요~ 😊",
-            opponentName + "님, 기다리고 있어요! 💕",
-            opponentName + "님, 생각이 오래 걸리네요! ⏰",
-            opponentName + "님, 빨리빨리! 🚀"
+                opponentName + "님, 빨리 두세요~ 😊",
+                opponentName + "님, 기다리고 있어요! 💕",
+                opponentName + "님, 생각이 오래 걸리네요! ⏰",
+                opponentName + "님, 빨리빨리! 🚀"
         };
 
         // 랜덤으로 메시지 선택
@@ -363,23 +419,21 @@ public class GameRoomService {
 
         // 현재 게임 상태 가져오기
         GameStateDto gameState = getGameState(roomId);
-        
+
         // 메시지를 포함한 GameStateDto 생성
         GameStateDto nudgeState = new GameStateDto(
-            gameState.getBoardState(),
-            gameState.getTurn(),
-            gameState.getStatus(),
-            gameState.getIsGameOver(),
-            gameState.getWinner(),
-            gameState.getHostName(),
-            gameState.getGuestName(),
-            selectedMessage
-        );
+                gameState.getBoardState(),
+                gameState.getTurn(),
+                gameState.getStatus(),
+                gameState.getIsGameOver(),
+                gameState.getWinner(),
+                gameState.getHostName(),
+                gameState.getGuestName(),
+                selectedMessage);
 
         // 브로드캐스트는 @SendTo 어노테이션이 처리하므로 여기서는 반환만 함
         log.info("Nudge message created for room {}: {}", roomId, selectedMessage);
-        
+
         return nudgeState;
     }
 }
-

@@ -4,7 +4,6 @@ import com.go.ai.entity.GameHistory;
 import com.go.ai.entity.User;
 import com.go.ai.repository.GameHistoryRepository;
 import com.go.ai.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,22 +31,28 @@ public class UserService {
     }
 
     public List<GameHistory> getGameHistory(Long userId) {
+        // 기본값은 GO (바둑)
+        return getGameHistory(userId, GameHistory.GameType.GO);
+    }
+
+    public List<GameHistory> getGameHistory(Long userId, GameHistory.GameType gameType) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
-        return gameHistoryRepository.findByUserOrderByPlayedAtDesc(user);
+        return gameHistoryRepository.findByUserAndGameTypeOrderByPlayedAtDesc(user, gameType);
     }
 
     @Transactional
-    public void saveGameResult(Long userId, GameHistory.GameResult result, int movesCount, String opponentName) {
+    public void saveGameResult(Long userId, GameHistory.GameResult result, int movesCount, String opponentName,
+            GameHistory.GameType gameType) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
-        
+
         GameHistory history = new GameHistory();
         history.setUser(user);
         history.setResult(result);
+        history.setGameType(gameType);
         history.setMovesCount(movesCount);
         history.setOpponentName(opponentName);
         gameHistoryRepository.save(history);
     }
 }
-

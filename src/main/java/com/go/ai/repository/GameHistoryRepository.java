@@ -7,5 +7,6 @@ import java.util.List;
 
 public interface GameHistoryRepository extends JpaRepository<GameHistory, Long> {
     List<GameHistory> findByUserOrderByPlayedAtDesc(User user);
-}
 
+    List<GameHistory> findByUserAndGameTypeOrderByPlayedAtDesc(User user, GameHistory.GameType gameType);
+}

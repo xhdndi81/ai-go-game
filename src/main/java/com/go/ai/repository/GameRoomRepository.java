@@ -7,6 +7,8 @@ import java.util.List;
 
 public interface GameRoomRepository extends JpaRepository<GameRoom, Long> {
     List<GameRoom> findByStatusOrderByCreatedAtDesc(GameRoom.RoomStatus status);
-    List<GameRoom> findByStatus(GameRoom.RoomStatus status);
-}
 
+    List<GameRoom> findByStatus(GameRoom.RoomStatus status);
+
+    List<GameRoom> findByStatusAndGameTypeOrderByCreatedAtDesc(GameRoom.RoomStatus status, GameRoom.GameType gameType);
+}

@@ -4,7 +4,6 @@ import com.go.ai.dto.GameStateDto;
 import com.go.ai.dto.RoomDto;
 import com.go.ai.entity.GameRoom;
 import com.go.ai.service.GameRoomService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,14 +29,16 @@ public class GameRoomController {
                 room.getId(),
                 room.getHost().getName(),
                 room.getStatus().name(),
-                room.getCreatedAt()
-        );
+                room.getCreatedAt());
         return ResponseEntity.ok(dto);
     }
 
     @GetMapping("/waiting")
-    public ResponseEntity<List<RoomDto>> getWaitingRooms() {
-        return ResponseEntity.ok(gameRoomService.getWaitingRooms());
+    public ResponseEntity<List<RoomDto>> getWaitingRooms(
+            @RequestParam(required = false, defaultValue = "GO") String gameType) {
+        // 기본값은 GO (바둑), 필요시 CHESS, OTHELLO 등으로 변경 가능
+        GameRoom.GameType type = GameRoom.GameType.valueOf(gameType.toUpperCase());
+        return ResponseEntity.ok(gameRoomService.getWaitingRooms(type));
     }
 
     @PostMapping("/{roomId}/join")
@@ -55,4 +56,3 @@ public class GameRoomController {
         return ResponseEntity.ok(gameRoomService.getGameState(roomId));
     }
 }
-
