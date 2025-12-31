@@ -96,7 +96,7 @@ CREATE DATABASE go CHARACTER SET utf8mb4;
 ```yaml
 spring:
   datasource:
-    url: jdbc:mariadb://your-db-host:3306/go
+    url: jdbc:mariadb://your-db-host:3306/your-database-schema
     username: your-username
     password: your-password
 ```
