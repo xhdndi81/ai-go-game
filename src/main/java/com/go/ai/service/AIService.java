@@ -47,13 +47,43 @@ public class AIService {
                 "아이의 실력에 상관없이 절대로 봐주지 말고 승리하기 위한 전략을 세우세요. " +
                 "하지만 멘트는 아이가 상처받지 않게 '와! 이 수 정말 날카로운데요? 저도 집중해야겠어요!' 처럼 " +
                 "아이의 도전을 격려하는 친절한 한국어로 작성하세요. " +
+                "일반적인 피드백은 이름 없이 자연스럽게 작성하고, " +
+                "특별한 상황(게임 시작, 중요한 수, 포획 발생, 게임 종료)에서만 아이의 이름을 부르세요. " +
                 "응답은 반드시 JSON 형식: {\"move\": \"좌표\", \"comment\": \"멘트\"} 로만 보내세요. " +
                 "move 필드는 실제로 둔 수가 아니라 코멘트용이므로 빈 문자열이나 \"\"로 보내도 됩니다.";
 
-        String userPrompt = "현재 바둑 상태: " + request.getBoardState() +
-                "\n현재 차례: " + request.getTurn() +
-                "\n대결 상대(아이)의 이름: " + request.getUserName() +
-                "\n**반드시 아이의 이름을 부르면서 칭찬이나 격려의 멘트를 작성하세요.**";
+        // 상황 정보를 기반으로 프롬프트 구성
+        StringBuilder userPromptBuilder = new StringBuilder();
+        userPromptBuilder.append("현재 바둑 상태: ").append(request.getBoardState());
+        userPromptBuilder.append("\n현재 차례: ").append(request.getTurn());
+        userPromptBuilder.append("\n대결 상대(아이)의 이름: ").append(request.getUserName());
+        
+        // 상황 정보 추가
+        boolean shouldUseName = false;
+        if (Boolean.TRUE.equals(request.getIsGameStart())) {
+            userPromptBuilder.append("\n상황: 게임이 막 시작되었습니다.");
+            shouldUseName = true;
+        }
+        if (Boolean.TRUE.equals(request.getIsGameEnd())) {
+            userPromptBuilder.append("\n상황: 게임이 종료되었습니다.");
+            shouldUseName = true;
+        }
+        if (Boolean.TRUE.equals(request.getHasCapture())) {
+            userPromptBuilder.append("\n상황: 포획이 발생했습니다.");
+            shouldUseName = true;
+        }
+        if (Boolean.TRUE.equals(request.getIsImportantMove())) {
+            userPromptBuilder.append("\n상황: 중요한 수가 두어졌습니다.");
+            shouldUseName = true;
+        }
+        
+        if (shouldUseName) {
+            userPromptBuilder.append("\n**이 상황에서는 아이의 이름을 부르면서 칭찬이나 격려의 멘트를 작성하세요.**");
+        } else {
+            userPromptBuilder.append("\n**일반적인 피드백이므로 이름 없이 자연스럽게 코멘트를 작성하세요.**");
+        }
+        
+        String userPrompt = userPromptBuilder.toString();
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", "gpt-4o-mini");

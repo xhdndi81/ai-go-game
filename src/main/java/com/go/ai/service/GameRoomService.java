@@ -11,6 +11,7 @@ import com.go.ai.repository.GameRoomRepository;
 import com.go.ai.repository.GoGameDataRepository;
 import com.go.ai.repository.UserRepository;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.slf4j.Logger;
@@ -100,27 +101,65 @@ public class GameRoomService {
                 processDisconnectWin(room, isHost);
             } else if (room.getStatus() == GameRoom.RoomStatus.WAITING) {
                 if (isHost) {
-                    room.setStatus(GameRoom.RoomStatus.FINISHED);
+                    // WAITING 상태의 방에서 방장이 나가면 방을 완전히 삭제
+                    deleteRoom(room);
+                    log.info("Waiting room {} deleted because host {} disconnected", room.getId(), userId);
+                } else if (isGuest) {
+                    // WAITING 상태의 방에서 게스트가 나가면 게스트만 제거
+                    room.setGuest(null);
                     gameRoomRepository.save(room);
-                    log.info("Waiting room {} closed because host {} disconnected", room.getId(), userId);
+                    log.info("Guest {} left waiting room {}", userId, room.getId());
                 }
             } else if (room.getStatus() == GameRoom.RoomStatus.FINISHED) {
                 if (isGuest) {
                     room.setGuest(null);
                     gameRoomRepository.save(room);
                     log.info("Guest {} left finished room {}", userId, room.getId());
+                    
+                    // 게스트가 나간 후 방장도 없으면 방 삭제
+                    if (room.getHost() == null || room.getHost().getId().equals(userId)) {
+                        deleteRoom(room);
+                        log.info("Finished room {} deleted because all users left", room.getId());
+                    }
                 } else if (isHost) {
                     // 방장이 종료된 방에서 나가는 경우
                     log.info("Host {} left finished room {}", userId, room.getId());
-                    // 게스트가 남아있다면 알림 전송
+                    
+                    // 게스트가 남아있으면 알림 전송 후 게스트를 null로 설정
                     if (room.getGuest() != null) {
                         Map<String, Object> notification = new HashMap<>();
                         notification.put("status", "FINISHED");
                         notification.put("message", "방장이 나갔습니다. 방이 닫힙니다.");
                         messagingTemplate.convertAndSend("/topic/game/" + room.getId(), notification);
+                        room.setGuest(null);
+                        gameRoomRepository.save(room);
+                    }
+                    
+                    // 방장이 나가고 게스트도 없으면 방 삭제
+                    if (room.getGuest() == null) {
+                        deleteRoom(room);
+                        log.info("Finished room {} deleted because host left and no guest", room.getId());
                     }
                 }
             }
+        }
+    }
+    
+    /**
+     * 방과 관련된 모든 데이터를 삭제하는 메서드
+     */
+    @Transactional
+    private void deleteRoom(GameRoom room) {
+        try {
+            // GoGameData 삭제
+            goGameDataRepository.findByRoom(room).ifPresent(goGameDataRepository::delete);
+            
+            // GameRoom 삭제
+            gameRoomRepository.delete(room);
+            
+            log.info("Room {} and associated data deleted successfully", room.getId());
+        } catch (Exception e) {
+            log.error("Error deleting room {}: {}", room.getId(), e.getMessage(), e);
         }
     }
 
@@ -435,5 +474,47 @@ public class GameRoomService {
         log.info("Nudge message created for room {}: {}", roomId, selectedMessage);
 
         return nudgeState;
+    }
+    
+    /**
+     * 주기적으로 비어있거나 오래된 방을 정리하는 스케줄러
+     * 매 10분마다 실행
+     */
+    @Scheduled(fixedRate = 600000) // 10분 = 600000ms
+    @Transactional
+    public void cleanupEmptyRooms() {
+        log.info("Starting cleanup of empty rooms...");
+        
+        List<GameRoom> allRooms = gameRoomRepository.findAll();
+        int deletedCount = 0;
+        
+        for (GameRoom room : allRooms) {
+            boolean shouldDelete = false;
+            
+            // WAITING 상태이고 게스트가 없고 생성된 지 30분 이상 지난 방 삭제
+            if (room.getStatus() == GameRoom.RoomStatus.WAITING && room.getGuest() == null) {
+                if (room.getCreatedAt() != null && 
+                    room.getCreatedAt().isBefore(LocalDateTime.now().minusMinutes(30))) {
+                    shouldDelete = true;
+                    log.info("Deleting old empty waiting room {} (created at {})", room.getId(), room.getCreatedAt());
+                }
+            }
+            
+            // FINISHED 상태이고 게스트가 없고 생성된 지 1시간 이상 지난 방 삭제
+            if (room.getStatus() == GameRoom.RoomStatus.FINISHED && room.getGuest() == null) {
+                if (room.getCreatedAt() != null && 
+                    room.getCreatedAt().isBefore(LocalDateTime.now().minusHours(1))) {
+                    shouldDelete = true;
+                    log.info("Deleting old finished room {} (created at {})", room.getId(), room.getCreatedAt());
+                }
+            }
+            
+            if (shouldDelete) {
+                deleteRoom(room);
+                deletedCount++;
+            }
+        }
+        
+        log.info("Cleanup completed. Deleted {} empty rooms.", deletedCount);
     }
 }

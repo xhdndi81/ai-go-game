@@ -5,6 +5,8 @@ let userName = null;
 let movesCount = 0;
 let nudgeTimer = null;
 let gameMode = 'single'; // 'single' 또는 'multi'
+let lastCapturedBlack = 0; // 포획 감지를 위한 이전 포획 수
+let lastCapturedWhite = 0; // 포획 감지를 위한 이전 포획 수
 
 // 멀티플레이어 관련 변수 (multiplayer.js에서 사용)
 let roomId = null;
@@ -55,14 +57,25 @@ function handleMove(row, col, color) {
     if (gameMode === 'single') {
         stopNudgeTimer();
         movesCount++;
+        
+        // 포획 감지
+        const hasCapture = (game.capturedBlack > lastCapturedBlack) || (game.capturedWhite > lastCapturedWhite);
+        const isGameStart = movesCount <= 5;
+        const isGameEnd = checkGameOver();
+        const isImportantMove = hasCapture || isGameStart || isGameEnd;
+        
+        // 포획 수 업데이트
+        lastCapturedBlack = game.capturedBlack;
+        lastCapturedWhite = game.capturedWhite;
+        
         updateStatus();
         
-        // AI 코멘트 요청 (특정 상황에서만)
-        if (Math.random() < 0.3) { // 30% 확률로 코멘트
-            getAIComment();
+        // AI 코멘트 요청 (15% 확률 또는 중요한 수인 경우)
+        if (isImportantMove || Math.random() < 0.15) { // 15% 확률로 코멘트 또는 중요한 수인 경우
+            getAIComment(hasCapture, isGameStart, isGameEnd, isImportantMove);
         }
         
-        if (!checkGameOver()) {
+        if (!isGameEnd) {
             window.setTimeout(makeAIMove, 500);
         }
     } else {
@@ -174,7 +187,13 @@ function checkGameOver() {
     return game.checkGameOver();
 }
 
-function getAIComment() {
+function getAIComment(hasCapture, isGameStart, isGameEnd, isImportantMove) {
+    // 기본값 설정 (인자가 없을 경우)
+    hasCapture = hasCapture || false;
+    isGameStart = isGameStart || false;
+    isGameEnd = isGameEnd || false;
+    isImportantMove = isImportantMove || false;
+    
     $.ajax({
         url: '/api/ai/comment',
         method: 'POST',
@@ -182,7 +201,11 @@ function getAIComment() {
         data: JSON.stringify({ 
             boardState: game.toJSON(), 
             turn: game.getTurn(),
-            userName: userName
+            userName: userName,
+            hasCapture: hasCapture,
+            isGameStart: isGameStart,
+            isGameEnd: isGameEnd,
+            isImportantMove: isImportantMove
         }),
         success: function(response) {
             const aiMessageEl = $('#ai-message');
@@ -237,12 +260,16 @@ function startNudgeTimer() {
     stopNudgeTimer();
     nudgeTimer = setTimeout(() => {
         if (game.getTurn() === 'w' && !game.checkGameOver()) {
+            // 이름을 부르는 메시지 비율을 줄임 (5개 중 2개만 이름 포함)
             const nudges = [
                 "어디로 둘지 결정했니? 😊",
                 `${userName}야, 천천히 생각해도 돼!`,
                 "선생님은 기다리고 있어!",
                 `${userName}야, 어떤 전략을 세우고 있니?`,
-                "선생님은 준비 다 됐어! 천천히 해봐~"
+                "선생님은 준비 다 됐어! 천천히 해봐~",
+                "좋은 수를 찾고 있구나!",
+                "천천히 생각해도 괜찮아요!",
+                "바둑은 생각하는 게임이니까요 😊"
             ];
             const ment = nudges[Math.floor(Math.random() * nudges.length)];
             $('#ai-message').text(ment);
@@ -332,6 +359,10 @@ $(document).ready(function() {
                 userId = user.id; userName = user.name;
                 $('#display-name').text(userName);
                 $('#login-container').hide(); $('#game-container').show();
+                // 포획 수 초기화
+                lastCapturedBlack = 0;
+                lastCapturedWhite = 0;
+                movesCount = 0;
                 initBoard();
                 
                 const welcome = `안녕, ${userName}야! 나는 너의 바둑 친구야. 우리 재미있게 놀아보자!`;
@@ -466,6 +497,8 @@ $(document).ready(function() {
     $('#btn-new-game').on('click', () => {
         game.reset();
         movesCount = 0;
+        lastCapturedBlack = 0;
+        lastCapturedWhite = 0;
         if (typeof lastSentBoardState !== 'undefined') lastSentBoardState = null;
         $('#btn-new-game').hide();
         

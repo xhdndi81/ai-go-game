@@ -12,6 +12,10 @@ function makeAIMove() {
         'opacity': '1'
     });
     
+    // 포획 감지를 위한 이전 포획 수 저장
+    const prevCapturedBlack = game.capturedBlack;
+    const prevCapturedWhite = game.capturedWhite;
+    
     // 난이도에 따라 AI 수준 결정
     setTimeout(() => {
         const move = getAIMove(currentSkillLevel);
@@ -23,12 +27,18 @@ function makeAIMove() {
                 updateStatus();
                 movesCount++;
                 
-                // AI 코멘트 요청 (항상 메시지 표시)
-                if (Math.random() < 0.4) {
-                    // 40% 확률로 AI 코멘트 요청
-                    getAIComment();
+                // 포획 감지
+                const hasCapture = (game.capturedBlack > prevCapturedBlack) || (game.capturedWhite > prevCapturedWhite);
+                const isGameStart = movesCount <= 5;
+                const isGameEnd = checkGameOver();
+                const isImportantMove = hasCapture || isGameStart || isGameEnd;
+                
+                // AI 코멘트 요청 (20% 확률 또는 중요한 수인 경우)
+                if (isImportantMove || Math.random() < 0.2) {
+                    // 20% 확률로 AI 코멘트 요청 또는 중요한 수인 경우
+                    getAIComment(hasCapture, isGameStart, isGameEnd, isImportantMove);
                 } else {
-                    // 60% 확률로 간단한 메시지 표시
+                    // 80% 확률로 간단한 메시지 표시
                     const casualMents = [
                         "음, 제 차례군요.",
                         "어디로 두면 좋을까?",
@@ -47,8 +57,10 @@ function makeAIMove() {
                     speak(ment);
                 }
                 
-                checkGameOver();
-                startNudgeTimer();
+                if (!isGameEnd) {
+                    checkGameOver();
+                    startNudgeTimer();
+                }
             } else {
                 // 유효하지 않은 수인 경우 다시 시도
                 makeAIMove();
@@ -149,7 +161,13 @@ function getStrategicMove(validMoves, strategyLevel) {
     return topMoves[Math.floor(Math.random() * topMoves.length)].move;
 }
 
-function getAIComment() {
+function getAIComment(hasCapture, isGameStart, isGameEnd, isImportantMove) {
+    // 기본값 설정 (인자가 없을 경우)
+    hasCapture = hasCapture || false;
+    isGameStart = isGameStart || false;
+    isGameEnd = isGameEnd || false;
+    isImportantMove = isImportantMove || false;
+    
     $.ajax({
         url: '/api/ai/comment',
         method: 'POST',
@@ -157,7 +175,11 @@ function getAIComment() {
         data: JSON.stringify({ 
             boardState: game.toJSON(), 
             turn: game.getTurn(),
-            userName: userName
+            userName: userName,
+            hasCapture: hasCapture,
+            isGameStart: isGameStart,
+            isGameEnd: isGameEnd,
+            isImportantMove: isImportantMove
         }),
         success: function(response) {
             const aiMessageEl = $('#ai-message');
